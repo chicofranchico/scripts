@@ -9,7 +9,6 @@ import gnupg
 import os
 import re
 
-# run: #fab set_hosts:filename=".dsh/group/somehosts" copy_pub -f fabric_copypub.py > out.fab
 
 passwords_txt='passwords.txt'
 
@@ -24,20 +23,10 @@ def if_host_offline_ignore(fn):
       except:
           print "The following host appears to be offline: " + env.host
       setdefaulttimeout(original_timeout)
-
     return wrapped
 
-
-def set_hosts(filename="hosts.txt"):
-    """Set hosts environment from a file and properly format it according
-    to the user@host:port fabric convention
-
-    Fill the passwords environment dictionary with the matched passwords from
-    the encrypted stacks password file.
-    """
-    env.hosts = [("root@%s" % line.rstrip('\n')) for line in open(filename)]
-
-    gpg = gnupg.GPG(gnupghome='~/.gnupg')
+def decrypt_get_passwords(passwords_file=passwords_txt):
+    gpg = gnupg.GPG(gnupghome='/home/SCIS-TAAARFR4/.gnupg')
     ask_pass = getpass.getpass("Decrypt passwords.gpg: ")
 
     with open('passwords.gpg', 'rb') as f:
@@ -55,6 +44,10 @@ def set_hosts(filename="hosts.txt"):
       stack_pass = line.split(":")
       stack_passwords[stack_pass[0]] = stack_pass[1]
 
+    return stack_passwords
+
+def set_env_passwords(stack_passwords):
+
     stacks = stack_passwords.keys()
 
     for host in env.hosts:
@@ -67,12 +60,28 @@ def set_hosts(filename="hosts.txt"):
       if not found:
           env.passwords[host] = 'default'
 
+def set_host(host_name):
+    env.hosts = [ "root@%s" % host_name ]
+
+    set_env_passwords(decrypt_get_passwords())
+
+def set_hosts(filename="hosts.txt"):
+    """Set hosts environment from a file and properly format it according
+    to the user@host:port fabric convention
+
+    Fill the passwords environment dictionary with the matched passwords from
+    the encrypted stacks password file.
+    """
+    env.hosts = [("root@%s" % line.rstrip('\n')) for line in open(filename)]
+
+    set_env_passwords(decrypt_get_passwords())
+
 @if_host_offline_ignore
 def hostname_f():
     run('hostname -f')
 
 @if_host_offline_ignore
-def copy_pub(pubkey="" ):
+def copy_pub(pubkey):
 
     # Check if authorized keys exists and create it if that's not the case
     size_before = run('[[ -e .ssh/authorized_keys ]] && stat --printf="%s" /root/.ssh/authorized_keys || (touch /root/.ssh/authorized_keys && echo 0)')
