@@ -10,7 +10,18 @@ import os
 import re
 
 
-passwords_txt='passwords.txt'
+class PromptUserException(Exception):
+    """ Make sure we are catching what we want """
+    pass
+
+env.abort_exception = PromptUserException
+env.abort_on_prompts = True # (--abort_on_prompts)
+
+passwords_input_file='passwords.gpg'
+passwords_output_file='passwords.txt'
+
+userlogin='root'
+sshport='22'
 
 def if_host_offline_ignore(fn):
     """Return the wrapped function to check for host aliveness"""
@@ -25,18 +36,18 @@ def if_host_offline_ignore(fn):
       setdefaulttimeout(original_timeout)
     return wrapped
 
-def decrypt_get_passwords(passwords_file=passwords_txt):
-    gpg = gnupg.GPG(gnupghome='/home/SCIS-TAAARFR4/.gnupg')
+def decrypt_get_passwords(passwords_file=passwords_output_file):
+    gpg = gnupg.GPG(gnupghome=os.path.expanduser('~/.gnupg'))
     ask_pass = getpass.getpass("Decrypt passwords.gpg: ")
 
-    with open('passwords.gpg', 'rb') as f:
-      status = gpg.decrypt_file(f, passphrase=ask_pass, output=passwords_txt)
+    with open(passwords_input_file, 'rb') as f:
+      status = gpg.decrypt_file(f, passphrase=ask_pass, output=passwords_output_file)
 
     print status.status
     print status.stderr
 
-    passwords = [line.rstrip('\n') for line in open(passwords_txt)]
-    os.remove(passwords_txt)
+    passwords = [line.rstrip('\n') for line in open(passwords_output_file)]
+    os.remove(passwords_output_file)
 
     stack_passwords = {}
 
@@ -46,12 +57,15 @@ def decrypt_get_passwords(passwords_file=passwords_txt):
 
     return stack_passwords
 
-def set_env_passwords(stack_passwords):
+def host_format_full(fqdn):
+    """ Format the fqdn to the expected Fabric format user@fqdn:port  """
+    return "%s@%s:%s" % (userlogin, fqdn, sshport)
 
+def set_env_passwords(stack_passwords):
+    
     stacks = stack_passwords.keys()
 
     for host in env.hosts:
-      host = ("%s:22" % host)
       found = False
       for stack in stacks:
         if re.search((r"%s" % stack), host, re.M|re.I):
@@ -61,8 +75,7 @@ def set_env_passwords(stack_passwords):
           env.passwords[host] = 'default'
 
 def set_host(host_name):
-    env.hosts = [ "root@%s" % host_name ]
-
+    env.hosts = [host_format_full(host_name)]
     set_env_passwords(decrypt_get_passwords())
 
 def set_hosts(filename="hosts.txt"):
@@ -72,16 +85,47 @@ def set_hosts(filename="hosts.txt"):
     Fill the passwords environment dictionary with the matched passwords from
     the encrypted stacks password file.
     """
-    env.hosts = [("root@%s" % line.rstrip('\n')) for line in open(filename)]
+    env.hosts = [host_format_full(line.rstrip('\n')) for line in open(filename)]
 
     set_env_passwords(decrypt_get_passwords())
+
+default_passwords = ['default1', 'default2', 'default3']
+
+def get_new_password(current_password):
+    """ Return next pasword for retry, None if no other password is available """
+    if current_password in default_passwords:
+        if default_passwords.index(current_password) + 1 <= len(default_passwords) - 1:
+            return default_passwords[default_passwords.index(current_password) + 1]
+        else:
+            return None
+    else:
+        return default_passwords[0]
 
 @if_host_offline_ignore
 def hostname_f():
     run('hostname -f')
 
 @if_host_offline_ignore
-def copy_pub(pubkey):
+def copy_pub(pubkeyfile='~/.ssh/id_rsa.pub'):
+
+    pubkey = open(os.path.expanduser(pubkeyfile)).read()
+
+    current_password = True
+    first_command_run = False
+    while current_password is not None:
+        try:
+            hostname_f()
+            current_password = None
+            first_command_run = True
+        except PromptUserException:
+            print 'Trying another default password!'
+            host = host_format_full(env.host) 
+            current_password = get_new_password(env.passwords[host]) 
+            env.passwords[host] = current_password
+    
+    if current_password is None and not first_command_run:
+        print "Failed all tries with known passwords. Aborting."
+        raise SystemExit
 
     # Check if authorized keys exists and create it if that's not the case
     size_before = run('[[ -e .ssh/authorized_keys ]] && stat --printf="%s" /root/.ssh/authorized_keys || (touch /root/.ssh/authorized_keys && echo 0)')
