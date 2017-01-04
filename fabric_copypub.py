@@ -108,7 +108,7 @@ def hostname_f():
 @if_host_offline_ignore
 def copy_pub(pubkeyfile='~/.ssh/id_rsa.pub'):
 
-    pubkey = open(os.path.expanduser(pubkeyfile)).read()
+    pubkey = open(os.path.expanduser(pubkeyfile)).read().rstrip('\n')
 
     current_password = True
     first_command_run = False
@@ -130,7 +130,7 @@ def copy_pub(pubkeyfile='~/.ssh/id_rsa.pub'):
     # Check if authorized keys exists and create it if that's not the case
     size_before = run('[[ -e .ssh/authorized_keys ]] && stat --printf="%s" /root/.ssh/authorized_keys || (touch /root/.ssh/authorized_keys && echo 0)')
 
-    echo_cmd = "echo %s >> /root/.ssh/authorized_keys" % (pubkey)
+    echo_cmd = "echo \"%s\" >> /root/.ssh/authorized_keys" % (pubkey)
     run(echo_cmd)
     run('sort -u -o /root/.ssh/authorized_keys /root/.ssh/authorized_keys')
 
