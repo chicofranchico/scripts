@@ -3,6 +3,9 @@
 import argparse, os, sys, requests
 from git import Repo, GitCommandError
 
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
+
+
 def main():
   parser = argparse.ArgumentParser(description='Recursively clones/pulls gitlab repositories')
   parser.add_argument('-u', '--url', required=True,
@@ -19,7 +22,8 @@ def main():
   url = args.url + '/api/v3/'
   tok = 'private_token=' + args.private_token
 
-  response = requests.get(url + 'groups?' + tok, verify=args.ssl_verify)
+  requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+  response = requests.get(url + 'groups?per_page=100&' + tok, verify=args.ssl_verify)
 
   data = response.json()
 
@@ -27,7 +31,10 @@ def main():
     group_id = group.get('id', None)
 
     print 'Group projects: ' + group.get('name', None)
+
+    requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
     response = requests.get(url + 'groups/' + str(group_id) + '/?' + tok, verify=args.ssl_verify)
+
     data_groups = response.json()
 
     for project in data_groups['projects']:
