@@ -225,7 +225,7 @@ def pull_hieradata(username):
         status = gpg.decrypt_file(f, output=password_file_output)
         print status.status
         _git_pass = open(password_file_output, 'r').read()
-        os.remove()
+        os.remove(password_file_output)
 
   with cd('/etc/puppet/hieradata'):
     prompts = { "Username for '" + proto + repo_url + "': ": username,
