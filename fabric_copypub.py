@@ -111,7 +111,7 @@ def set_env_passwords(system_passwords):
       env.passwords[host] = 'bladetest'
 
 
-def set_host(host_name, set_password=True):
+def set_host(host_name, set_password="True"):
   """
   Fabric specific function to set the environment for a single host
   :param host_name: the hostname
@@ -123,7 +123,7 @@ def set_host(host_name, set_password=True):
     set_env_passwords(decrypt_get_passwords())
 
 
-def set_hosts(file_name, set_password=True):
+def set_hosts(file_name, set_password="True"):
   """
   Fabric specific function to set hosts environment from a file and properly
   format it according to the user@host:port fabric convention
