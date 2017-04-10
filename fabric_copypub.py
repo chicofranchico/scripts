@@ -154,7 +154,11 @@ def copy_pub(pubkeyfile=os.path.expanduser('~/.ssh/id_rsa.pub')):
   :param pubkeyfile: path to the public key file. Defaults to your home local id_rsa.pub file
   """
 
-  pubkey = open(pubkeyfile).read().rstrip('\n')
+  try:
+    pubkey = open(pubkeyfile).read().rstrip('\n')
+  except:
+    print("Couldn't open file " + pubkeyfile)
+    sys.exit(1)
 
   current_password = True
   first_command_run = False
